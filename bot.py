@@ -1,5 +1,4 @@
 import os
-import re
 import tempfile
 from pathlib import Path
 
@@ -15,11 +14,12 @@ from telegram.ext import (
 from yt_dlp import YoutubeDL
 
 TOKEN = os.getenv("BOT_TOKEN")
-
 user_links = {}
 
-def is_instagram_link(text):
-    return "instagram.com" in text
+
+def is_instagram_link(text: str) -> bool:
+    return text and "instagram.com" in text
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -27,6 +27,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📥 Instagram video yoki Reel linkini yuboring.\n"
         "Men sizga video yoki audio qilib yuklab beraman."
     )
+
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
@@ -46,8 +47,9 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         "Qaysi formatda yuklab olay?",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        reply_markup=InlineKeyboardMarkup(keyboard),
     )
+
 
 async def download_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -68,6 +70,7 @@ async def download_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text("⏳ Audio yuklanmoqda...")
         await download_audio(query, url)
 
+
 async def download_video(query, url):
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -76,21 +79,26 @@ async def download_video(query, url):
                 "format": "mp4/best",
                 "noplaylist": True,
                 "quiet": True,
+                "merge_output_format": "mp4",
             }
 
             with YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                file_path = ydl.prepare_filename(info)
+                ydl.extract_info(url, download=True)
 
             files = list(Path(tmpdir).glob("*"))
-            if files:
-                file_path = str(files[0])
+
+            if not files:
+                await query.message.reply_text("❌ Video topilmadi.")
+                return
+
+            file_path = str(files[0])
 
             with open(file_path, "rb") as video:
                 await query.message.reply_video(video=video, caption="✅ Video tayyor")
 
     except Exception as e:
         await query.message.reply_text(f"❌ Video yuklanmadi.\nSabab: {e}")
+
 
 async def download_audio(query, url):
     try:
@@ -115,7 +123,7 @@ async def download_audio(query, url):
             files = list(Path(tmpdir).glob("*.mp3"))
 
             if not files:
-                await query.message.reply_text("❌ MP3 yaratilmadi. Serverda ffmpeg yo‘q bo‘lishi mumkin.")
+                await query.message.reply_text("❌ MP3 yaratilmadi. Railway’da ffmpeg yo‘q bo‘lishi mumkin.")
                 return
 
             with open(files[0], "rb") as audio:
@@ -124,7 +132,11 @@ async def download_audio(query, url):
     except Exception as e:
         await query.message.reply_text(f"❌ Audio yuklanmadi.\nSabab: {e}")
 
+
 def main():
+    if not TOKEN:
+        raise ValueError("BOT_TOKEN topilmadi. Railway Variables ichiga BOT_TOKEN qo‘shing.")
+
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
@@ -133,5 +145,6 @@ def main():
 
     app.run_polling()
 
-if name == "__main__":
+
+if __name__ == "__main__":
     main()
